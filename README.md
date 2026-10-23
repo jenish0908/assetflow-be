@@ -21,7 +21,7 @@ GitHub Actions
 | **Stripe without double charges** | Idempotency keys + signature-verified webhooks deduped by event ID in the same transaction as their side effects. Fault-injection reconciliation: **387 problems (47 double charges) → 0** ([details](docs/perf.md#m4-stripe-billing-before-and-after-idempotency--webhook-dedupe)) |
 | **Job worker** | `FOR UPDATE SKIP LOCKED` + leases, bounded goroutine pool under `errgroup`, retries with backoff, dead-lettering, graceful SIGTERM shutdown. **39 → 2,260 jobs/sec** from 1 to 64 goroutines, zero duplicates ([details](docs/perf.md#m5-notification-worker-throughput)) |
 | **LLM agent** | "allocate laptop L-102 to Priya" becomes 6 permission-scoped tools. Roles are checked in Go before execution, arguments strictly validated, reads run in parallel and writes in order, each tool call has its own timeout |
-| **Small, locked-down images** | Distroless, static, non-root: api **24.1 MB**, worker **18.5 MB** (vs 1.24 GB build image) |
+| **Small, locked-down images** | Distroless, static, non-root: api **15.4 MB**, worker **11.2 MB**; 5.4 MB compressed vs 303 MB for the build image |
 
 ## Architecture
 
@@ -243,12 +243,16 @@ Multi-stage build: `golang:1.23` compiles a static binary (`CGO_ENABLED=0`,
 `-trimpath -ldflags="-s -w"`), copied into `gcr.io/distroless/static-debian12:nonroot`,
 which has no shell or package manager and runs as non-root.
 
-| image | size (`docker image ls`) | compressed | binary |
+| image | size | compressed (pull) | binary |
 |---|---:|---:|---:|
-| `assetflow-api` | **24.1 MB** | 5.4 MB | 13.3 MB |
-| `assetflow-worker` | **18.5 MB** | 4.0 MB | 9.1 MB |
-| `golang:1.23` (build stage only) | 1.24 GB | 303 MB | n/a |
+| `assetflow-api` | **15.4 MB** | 5.4 MB | 13.3 MB |
+| `assetflow-worker` | **11.2 MB** | 4.0 MB | 9.1 MB |
+| `golang:1.23` (build stage only) | n/a | 303 MB | n/a |
 
+"Size" is `docker image ls` in CI (the "Image size" step of the build job).
+Compressed sizes are from `docker image inspect`. Docker Desktop's containerd
+image store shows a larger `docker image ls` number (24.1 MB for the api),
+because it counts the compressed layers and their unpacked copy together.
 Re-measure with `make docker-build`.
 
 ## Learn from it

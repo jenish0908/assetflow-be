@@ -370,10 +370,15 @@ copies **only the binary** into a minimal runtime image.
 entries: no shell, no package manager, no libc. `CGO_ENABLED=0` makes the Go
 binary fully static so it needs nothing else.
 
-**In AssetFlow.** [`Dockerfile`](../Dockerfile): `golang:1.23` (1.24 GB) builds
-with `-trimpath -ldflags="-s -w"`; the runtime is
-`distroless/static-debian12:nonroot`. Result: **api 24.1 MB**, worker 18.5 MB
-(5.4 / 4.0 MB compressed). `docker run --entrypoint sh` fails, because there is no shell.
+**In AssetFlow.** [`Dockerfile`](../Dockerfile): `golang:1.23` (303 MB
+compressed) builds with `-trimpath -ldflags="-s -w"`; the runtime is
+`distroless/static-debian12:nonroot`. Result, measured in CI: **api 15.4 MB**
+(a 13.3 MB binary plus about 2 MB of base), worker 11.2 MB; 5.4 / 4.0 MB
+compressed. `docker run --entrypoint sh` fails, because there is no shell.
+
+*Measurement gotcha:* Docker Desktop with the containerd image store reports
+24.1 MB for the same api image, because it adds the compressed layers to their
+unpacked copy. Know which number a tool shows before you quote it.
 
 **Q: Why distroless?**
 Small images pull and start faster. Fewer packages means fewer CVEs and less
