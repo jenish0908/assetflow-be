@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jenish0908/assetflow-be/internal/service"
 )
 
 func TestFakeParses(t *testing.T) {
@@ -101,4 +103,16 @@ func TestFakeCannotBypassPermissions(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, reply.Text, "permission denied")
 	assert.Empty(t, assets.Events())
+}
+
+func TestGetAssetInfoNamesTheHolder(t *testing.T) {
+	assets := newFakeAssets("L-102")
+	a := assets.byTag["L-102"]
+	a.Status = service.StatusAllocated
+	a.Allocations = []service.Allocation{{ID: 1, AssetID: a.ID, UserID: 7}}
+	assets.byTag["L-102"] = a
+
+	reply, err := New(Fake{}, assets, priya(), DefaultOptions(), discardLogger()).Chat(context.Background(), viewer, "show L-102")
+	require.NoError(t, err)
+	assert.Equal(t, "L-102 (Asset L-102) is allocated, with Priya Shah.", reply.Text)
 }

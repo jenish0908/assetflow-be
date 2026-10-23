@@ -147,3 +147,12 @@ func callsThenDone(calls ...ToolCall) *scriptedLLM {
 }
 
 func discardLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
+
+func (f *fakeUsers) Get(_ context.Context, id int64) (service.User, error) {
+	for _, u := range f.users {
+		if u.ID == id {
+			return u, nil
+		}
+	}
+	return service.User{}, service.NewError(service.ErrNotFound, "user %d not found", id)
+}

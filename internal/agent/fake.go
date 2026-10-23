@@ -196,15 +196,12 @@ func success(name string, args map[string]string, result json.RawMessage) string
 	case "getAssetInfo":
 		var r struct {
 			Tag, Name, Status string
-			Allocations       []struct {
-				UserID     int64           `json:"user_id"`
-				ReturnedAt json.RawMessage `json:"returned_at"`
-			}
+			Holder            *struct{ Name string }
 		}
 		_ = json.Unmarshal(result, &r)
 		s := fmt.Sprintf("%s (%s) is %s", r.Tag, r.Name, r.Status)
-		if len(r.Allocations) > 0 && r.Allocations[0].ReturnedAt == nil {
-			s += fmt.Sprintf(", held by user #%d", r.Allocations[0].UserID)
+		if r.Holder != nil {
+			s += ", with " + r.Holder.Name
 		}
 		return s + "."
 	}

@@ -25,6 +25,7 @@ type AssetService interface {
 type UserService interface {
 	Create(ctx context.Context, in service.CreateUserInput) (service.User, error)
 	Find(ctx context.Context, query string) ([]service.User, error)
+	Get(ctx context.Context, id int64) (service.User, error)
 }
 
 // tool is one operation the model may request. minRole mirrors the HTTP
@@ -94,7 +95,7 @@ func newTools(assets AssetService, users UserService) []tool {
 		{
 			def: ToolDef{
 				Name:        "getAssetInfo",
-				Description: "Look up an asset by tag: name, category, status and allocation history.",
+				Description: "Look up an asset by tag: name, category, status, who has it now, and allocation history.",
 				Parameters:  schema(`{"asset_tag": {"type": "string", "description": "Asset tag, e.g. L-102"}}`, "asset_tag"),
 			},
 			minRole:  auth.RoleViewer,
@@ -102,7 +103,25 @@ func newTools(assets AssetService, users UserService) []tool {
 			run: typed(func(ctx context.Context, a struct {
 				AssetTag string `json:"asset_tag"`
 			}) (any, error) {
-				return resolveAsset(ctx, a.AssetTag)
+				asset, err := resolveAsset(ctx, a.AssetTag)
+				if err != nil {
+					return nil, err
+				}
+				// Name the current holder, so the answer can say "Priya Shah"
+				// rather than "user #3".
+				result := struct {
+					service.AssetWithAllocations
+					Holder *holder `json:"holder,omitempty"`
+				}{AssetWithAllocations: asset}
+				for _, al := range asset.Allocations {
+					if al.ReturnedAt == nil {
+						if u, err := users.Get(ctx, al.UserID); err == nil {
+							result.Holder = &holder{ID: u.ID, Name: u.Name, Email: u.Email}
+						}
+						break
+					}
+				}
+				return result, nil
 			}),
 		},
 		{
@@ -231,4 +250,11 @@ func randomPassword() string {
 	b := make([]byte, 18)
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// holder is the person who has an asset right now, as shown to the model.
+type holder struct {
+	ID    int64  `json:"id"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
 }

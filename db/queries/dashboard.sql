@@ -28,5 +28,5 @@ LIMIT sqlc.arg(lim);
 SELECT id, kind, payload, status, attempts, max_attempts, run_at, last_error, created_at, updated_at
 FROM notification_jobs
 WHERE sqlc.narg(user_id)::bigint IS NULL OR (payload ->> 'user_id')::bigint = sqlc.narg(user_id)
-ORDER BY id DESC
+ORDER BY created_at DESC, id DESC
 LIMIT sqlc.arg(lim);

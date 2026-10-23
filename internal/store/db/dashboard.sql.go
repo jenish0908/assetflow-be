@@ -85,7 +85,7 @@ const listNotifications = `-- name: ListNotifications :many
 SELECT id, kind, payload, status, attempts, max_attempts, run_at, last_error, created_at, updated_at
 FROM notification_jobs
 WHERE $1::bigint IS NULL OR (payload ->> 'user_id')::bigint = $1
-ORDER BY id DESC
+ORDER BY created_at DESC, id DESC
 LIMIT $2
 `
 

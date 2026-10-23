@@ -137,6 +137,8 @@ docker compose --profile app up -d --build api worker
 curl localhost:8080/readyz          # {"status":"ready"}
 ```
 
+To try the web UI with realistic sample data (32 devices, 12 people, history and payments), run `bash scripts/demo.sh`: it fills a separate `assetflow_demo` database and starts the API and worker on it. Then start [assetflow-fe](https://github.com/jenish0908/assetflow-fe).
+
 To develop with a local Go toolchain instead, copy `.env.example` to `.env`
 and run `make run-api` and `make run-worker`.
 
