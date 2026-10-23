@@ -130,3 +130,31 @@ func TestLoadWorker(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadBillingMode(t *testing.T) {
+	base := map[string]string{"DATABASE_URL": "postgres://x", "JWT_SECRET": testSecret}
+	tests := []struct {
+		name    string
+		env     map[string]string
+		wantErr bool
+	}{
+		{"unset", nil, false},
+		{"fake", map[string]string{"BILLING_MODE": "fake"}, false},
+		{"stripe with key", map[string]string{"BILLING_MODE": "stripe", "STRIPE_SECRET_KEY": "sk_test_x", "STRIPE_WEBHOOK_SECRET": "whsec_x"}, false},
+		{"stripe without key", map[string]string{"BILLING_MODE": "stripe"}, true},
+		{"unknown", map[string]string{"BILLING_MODE": "paypal"}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env := maps.Clone(base)
+			maps.Copy(env, tt.env)
+			cfg, err := Load(func(k string) string { return env[k] })
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.env["BILLING_MODE"], cfg.BillingMode)
+		})
+	}
+}

@@ -48,6 +48,9 @@ type Store interface {
 	CreatePayment(ctx context.Context, p NewPayment) (Payment, error)
 	GetPayment(ctx context.Context, id int64) (Payment, error)
 	GetPaymentByIdempotencyKey(ctx context.Context, key string) (Payment, error)
+	// ListPayments returns one user's payments, or everyone's when userID is nil.
+	ListPayments(ctx context.Context, userID *int64, limit, offset int) ([]Payment, error)
+	CountPayments(ctx context.Context, userID *int64) (int64, error)
 
 	ListPaymentsSince(ctx context.Context, since time.Time) ([]Payment, error)
 	// SucceededJobCounts maps payment ID to its number of payment_succeeded
@@ -68,4 +71,11 @@ type Tx interface {
 	// eventAt keeps last_event_at unchanged.
 	ApplyPaymentStatus(ctx context.Context, id int64, intentID, status string, eventAt *time.Time) error
 	EnqueueNotification(ctx context.Context, kind string, payload []byte) error
+}
+
+type PaymentPage struct {
+	Items  []Payment `json:"items"`
+	Limit  int       `json:"limit"`
+	Offset int       `json:"offset"`
+	Total  int64     `json:"total"`
 }

@@ -12,9 +12,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/jenish0908/assetflow/internal/config"
-	"github.com/jenish0908/assetflow/internal/notify"
-	"github.com/jenish0908/assetflow/internal/store"
+	"github.com/jenish0908/assetflow-be/internal/config"
+	"github.com/jenish0908/assetflow-be/internal/notify"
+	"github.com/jenish0908/assetflow-be/internal/store"
 )
 
 func main() {

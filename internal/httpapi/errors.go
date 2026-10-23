@@ -6,9 +6,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/jenish0908/assetflow/internal/agent"
-	"github.com/jenish0908/assetflow/internal/billing"
-	"github.com/jenish0908/assetflow/internal/service"
+	"github.com/jenish0908/assetflow-be/internal/agent"
+	"github.com/jenish0908/assetflow-be/internal/billing"
+	"github.com/jenish0908/assetflow-be/internal/service"
 )
 
 // Every error response has the same shape:

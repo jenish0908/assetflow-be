@@ -11,8 +11,8 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/jenish0908/assetflow/internal/auth"
-	"github.com/jenish0908/assetflow/internal/service"
+	"github.com/jenish0908/assetflow-be/internal/auth"
+	"github.com/jenish0908/assetflow-be/internal/service"
 )
 
 type Options struct {

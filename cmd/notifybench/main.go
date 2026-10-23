@@ -25,8 +25,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/jenish0908/assetflow/internal/notify"
-	"github.com/jenish0908/assetflow/internal/store"
+	"github.com/jenish0908/assetflow-be/internal/notify"
+	"github.com/jenish0908/assetflow-be/internal/store"
 )
 
 const kind = "bench"

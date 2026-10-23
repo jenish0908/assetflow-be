@@ -35,11 +35,11 @@ import (
 	"github.com/stripe/stripe-go/v81/webhook"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/jenish0908/assetflow/internal/auth"
-	"github.com/jenish0908/assetflow/internal/billing"
-	"github.com/jenish0908/assetflow/internal/httpapi"
-	"github.com/jenish0908/assetflow/internal/service"
-	"github.com/jenish0908/assetflow/internal/store"
+	"github.com/jenish0908/assetflow-be/internal/auth"
+	"github.com/jenish0908/assetflow-be/internal/billing"
+	"github.com/jenish0908/assetflow-be/internal/httpapi"
+	"github.com/jenish0908/assetflow-be/internal/service"
+	"github.com/jenish0908/assetflow-be/internal/store"
 )
 
 const webhookSecret = "whsec_billingsim"

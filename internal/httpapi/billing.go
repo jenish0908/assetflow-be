@@ -7,8 +7,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/jenish0908/assetflow/internal/auth"
-	"github.com/jenish0908/assetflow/internal/billing"
+	"github.com/jenish0908/assetflow-be/internal/auth"
+	"github.com/jenish0908/assetflow-be/internal/billing"
 )
 
 // BillingService is what the handlers need from billing.
@@ -16,6 +16,7 @@ type BillingService interface {
 	CreatePayment(ctx context.Context, userID int64, idempotencyKey string, in billing.CreatePaymentInput) (billing.CreatePaymentResult, error)
 	GetPayment(ctx context.Context, actor auth.Claims, id int64) (billing.Payment, error)
 	HandleWebhook(ctx context.Context, payload []byte, signature string) error
+	ListPayments(ctx context.Context, actor auth.Claims, limit, offset int) (billing.PaymentPage, error)
 }
 
 type billingHandlers struct {
@@ -70,4 +71,22 @@ func (h *billingHandlers) stripeWebhook(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"received": true})
+}
+
+func (h *billingHandlers) listPayments(c *gin.Context) {
+	limit, ok := queryInt(c, "limit")
+	if !ok {
+		return
+	}
+	offset, ok := queryInt(c, "offset")
+	if !ok {
+		return
+	}
+	claims, _ := claimsFrom(c)
+	page, err := h.billing.ListPayments(c.Request.Context(), claims, limit, offset)
+	if err != nil {
+		respondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, page)
 }

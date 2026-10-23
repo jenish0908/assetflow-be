@@ -8,7 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/jenish0908/assetflow/internal/service"
+	"github.com/jenish0908/assetflow-be/internal/service"
 )
 
 const maxBodyBytes = 1 << 20 // 1 MiB
@@ -17,13 +17,16 @@ const maxBodyBytes = 1 << 20 // 1 MiB
 type UserService interface {
 	Login(ctx context.Context, email, password string) (string, error)
 	Create(ctx context.Context, in service.CreateUserInput) (service.User, error)
+	Get(ctx context.Context, id int64) (service.User, error)
+	List(ctx context.Context, query string, limit, offset int) (service.UserPage, error)
+	GetMany(ctx context.Context, ids []int64) ([]service.User, error)
 }
 
 // AssetService is what the handlers need from the asset service.
 type AssetService interface {
 	Create(ctx context.Context, in service.NewAsset) (service.Asset, error)
 	Get(ctx context.Context, id int64) (service.AssetWithAllocations, error)
-	List(ctx context.Context, limit, offset int) (service.AssetPage, error)
+	List(ctx context.Context, f service.AssetFilter, limit, offset int) (service.AssetPage, error)
 	Update(ctx context.Context, id int64, p service.AssetPatch) (service.Asset, error)
 	Delete(ctx context.Context, id int64) error
 	Allocate(ctx context.Context, assetID, userID int64) (service.Allocation, error)
@@ -32,8 +35,9 @@ type AssetService interface {
 }
 
 type handlers struct {
-	users  UserService
-	assets AssetService
+	users    UserService
+	assets   AssetService
+	features Features
 }
 
 func (h *handlers) login(c *gin.Context) {
@@ -74,7 +78,8 @@ func (h *handlers) listAssets(c *gin.Context) {
 	if !ok {
 		return
 	}
-	page, err := h.assets.List(c.Request.Context(), limit, offset)
+	f := service.AssetFilter{Status: service.AssetStatus(c.Query("status")), Query: c.Query("q")}
+	page, err := h.assets.List(c.Request.Context(), f, limit, offset)
 	if err != nil {
 		respondError(c, err)
 		return

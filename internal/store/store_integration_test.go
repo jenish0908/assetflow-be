@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jenish0908/assetflow/internal/auth"
-	"github.com/jenish0908/assetflow/internal/service"
-	"github.com/jenish0908/assetflow/internal/store"
+	"github.com/jenish0908/assetflow-be/internal/auth"
+	"github.com/jenish0908/assetflow-be/internal/service"
+	"github.com/jenish0908/assetflow-be/internal/store"
 )
 
 // These tests need a real, migrated Postgres:
@@ -82,7 +82,7 @@ func TestListStrategiesAgree(t *testing.T) {
 	for offset := 0; ; offset += pageSize {
 		pages := make([]service.AssetPage, len(strategies))
 		for i, s := range strategies {
-			pages[i], err = service.NewAssetService(st, s).List(ctx, pageSize, offset)
+			pages[i], err = service.NewAssetService(st, s).List(ctx, service.AssetFilter{}, pageSize, offset)
 			require.NoError(t, err, "strategy %s offset %d", s, offset)
 		}
 		for i := 1; i < len(pages); i++ {
@@ -138,4 +138,62 @@ func TestConcurrentAllocateOnlyOneWins(t *testing.T) {
 		assert.ErrorIs(t, err, service.ErrConflict)
 	}
 	assert.Equal(t, 1, wins)
+}
+
+// TestDirectoryQueries checks the SQL behind filtering and lookups.
+func TestDirectoryQueries(t *testing.T) {
+	st := newTestStore(t)
+	ctx := context.Background()
+	sfx := uniqueSuffix()
+	assets := service.NewAssetService(st, service.ListBatched)
+	users := service.NewUserService(st, nil)
+
+	u, err := st.CreateUser(ctx, service.NewUser{Email: "dir-" + sfx + "@test.dev", Name: "Dir " + sfx, PasswordHash: "x", Role: auth.RoleViewer})
+	require.NoError(t, err)
+	a1, err := assets.Create(ctx, service.NewAsset{Tag: "DIR-" + sfx + "-1", Name: "Zeta 50% off " + sfx, Category: "laptop"})
+	require.NoError(t, err)
+	_, err = assets.Create(ctx, service.NewAsset{Tag: "DIR-" + sfx + "-2", Name: "Zeta 500 " + sfx, Category: "laptop"})
+	require.NoError(t, err)
+	_, err = assets.UpdateStatus(ctx, a1.ID, service.StatusMaintenance)
+	require.NoError(t, err)
+
+	page, err := assets.List(ctx, service.AssetFilter{Query: "DIR-" + sfx}, 100, 0)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), page.Total, "search matches tags")
+
+	page, err = assets.List(ctx, service.AssetFilter{Query: "50% off " + sfx}, 100, 0)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), page.Total, "%% in the search is literal, not a wildcard")
+
+	page, err = assets.List(ctx, service.AssetFilter{Query: "dir-" + sfx, Status: service.StatusMaintenance}, 100, 0)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), page.Total, "case-insensitive search combined with status")
+	assert.Equal(t, a1.ID, page.Items[0].ID)
+
+	// Every list strategy, including the filtered JOIN query, returns the same page.
+	filter := service.AssetFilter{Query: "DIR-" + sfx}
+	var want service.AssetPage
+	for i, s := range []service.ListStrategy{service.ListNPlusOne, service.ListBatched, service.ListJoin} {
+		got, err := service.NewAssetService(st, s).List(ctx, filter, 100, 0)
+		require.NoError(t, err)
+		if i == 0 {
+			want = got
+			continue
+		}
+		require.Equal(t, want, got, "strategy %s with a filter", s)
+	}
+
+	found, err := users.List(ctx, "dir "+sfx, 10, 0)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), found.Total)
+
+	many, err := users.GetMany(ctx, []int64{u.ID, 1 << 40})
+	require.NoError(t, err)
+	require.Len(t, many, 1, "unknown IDs are skipped")
+	assert.Equal(t, u.ID, many[0].ID)
+
+	stats, err := st.Stats(ctx)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, stats.AssetsByStatus[service.StatusMaintenance], int64(1))
+	assert.GreaterOrEqual(t, stats.Users, int64(1))
 }

@@ -58,3 +58,13 @@ ON CONFLICT (id) DO NOTHING;
 -- name: EnqueueNotification :exec
 INSERT INTO notification_jobs (kind, payload)
 VALUES ($1, $2);
+
+-- name: ListPayments :many
+SELECT * FROM payments
+WHERE sqlc.narg(user_id)::bigint IS NULL OR user_id = sqlc.narg(user_id)
+ORDER BY id DESC
+LIMIT sqlc.arg(lim) OFFSET sqlc.arg(off);
+
+-- name: CountPayments :one
+SELECT count(*) FROM payments
+WHERE sqlc.narg(user_id)::bigint IS NULL OR user_id = sqlc.narg(user_id);

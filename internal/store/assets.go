@@ -6,8 +6,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/jenish0908/assetflow/internal/service"
-	"github.com/jenish0908/assetflow/internal/store/db"
+	"github.com/jenish0908/assetflow-be/internal/service"
+	"github.com/jenish0908/assetflow-be/internal/store/db"
 )
 
 func (s *Store) CreateAsset(ctx context.Context, a service.NewAsset) (service.Asset, error) {
@@ -31,9 +31,18 @@ func (s *Store) GetAssetForUpdate(ctx context.Context, id int64) (service.Asset,
 }
 
 // ListAssets expects limit and offset already validated by the service, so
-// the int32 conversions cannot overflow.
-func (s *Store) ListAssets(ctx context.Context, limit, offset int) ([]service.Asset, error) {
-	rows, err := s.q.ListAssets(ctx, db.ListAssetsParams{Limit: int32(limit), Offset: int32(offset)})
+// the int32 conversions cannot overflow. An empty filter uses the plain query
+// (the hot path); see the *Filtered queries in db/queries/assets.sql for why.
+func (s *Store) ListAssets(ctx context.Context, f service.AssetFilter, limit, offset int) ([]service.Asset, error) {
+	var rows []db.Asset
+	var err error
+	if f == (service.AssetFilter{}) {
+		rows, err = s.q.ListAssets(ctx, db.ListAssetsParams{Limit: int32(limit), Offset: int32(offset)})
+	} else {
+		rows, err = s.q.ListAssetsFiltered(ctx, db.ListAssetsFilteredParams{
+			Status: optional(string(f.Status)), Query: optional(f.Query), Lim: int32(limit), Off: int32(offset),
+		})
+	}
 	if err != nil {
 		return nil, translate(err)
 	}
@@ -47,10 +56,25 @@ func (s *Store) ListAssets(ctx context.Context, limit, offset int) ([]service.As
 // ListAssetsWithAllocations runs the JOIN query and folds the flat rows (one
 // per allocation, or one with NULL allocation columns for an asset that has
 // none) back into one entry per asset. Rows arrive ordered by asset ID.
-func (s *Store) ListAssetsWithAllocations(ctx context.Context, limit, offset int) ([]service.AssetWithAllocations, error) {
-	rows, err := s.q.ListAssetsWithAllocations(ctx, db.ListAssetsWithAllocationsParams{Limit: int32(limit), Offset: int32(offset)})
-	if err != nil {
-		return nil, translate(err)
+func (s *Store) ListAssetsWithAllocations(ctx context.Context, f service.AssetFilter, limit, offset int) ([]service.AssetWithAllocations, error) {
+	var rows []db.ListAssetsWithAllocationsRow
+	if f == (service.AssetFilter{}) {
+		var err error
+		rows, err = s.q.ListAssetsWithAllocations(ctx, db.ListAssetsWithAllocationsParams{Limit: int32(limit), Offset: int32(offset)})
+		if err != nil {
+			return nil, translate(err)
+		}
+	} else {
+		filtered, err := s.q.ListAssetsWithAllocationsFiltered(ctx, db.ListAssetsWithAllocationsFilteredParams{
+			Status: optional(string(f.Status)), Query: optional(f.Query), Lim: int32(limit), Off: int32(offset),
+		})
+		if err != nil {
+			return nil, translate(err)
+		}
+		rows = make([]db.ListAssetsWithAllocationsRow, len(filtered))
+		for i, r := range filtered {
+			rows[i] = db.ListAssetsWithAllocationsRow(r) // identical columns
+		}
 	}
 
 	out := make([]service.AssetWithAllocations, 0, limit)
@@ -79,8 +103,12 @@ func (s *Store) ListAssetsWithAllocations(ctx context.Context, limit, offset int
 	return out, nil
 }
 
-func (s *Store) CountAssets(ctx context.Context) (int64, error) {
-	n, err := s.q.CountAssets(ctx)
+func (s *Store) CountAssets(ctx context.Context, f service.AssetFilter) (int64, error) {
+	if f == (service.AssetFilter{}) {
+		n, err := s.q.CountAssets(ctx)
+		return n, translate(err)
+	}
+	n, err := s.q.CountAssetsFiltered(ctx, db.CountAssetsFilteredParams{Status: optional(string(f.Status)), Query: optional(f.Query)})
 	return n, translate(err)
 }
 

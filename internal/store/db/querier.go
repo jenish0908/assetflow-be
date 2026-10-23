@@ -14,6 +14,8 @@ type Querier interface {
 	// event_at is the Stripe event time; NULL (status from an API response)
 	// leaves last_event_at unchanged.
 	ApplyPaymentStatus(ctx context.Context, arg ApplyPaymentStatusParams) error
+	// Read-only queries for the overview screen and the notification feed.
+	AssetStatusCounts(ctx context.Context) ([]AssetStatusCountsRow, error)
 	// ClaimJobs leases up to batch_size runnable jobs to one worker.
 	//
 	// FOR UPDATE SKIP LOCKED: rows another worker is claiming right now are
@@ -28,7 +30,11 @@ type Querier interface {
 	// worker's lease expired and another worker reclaimed the job, the update
 	// matches no row and the stale worker cannot overwrite the new owner.
 	CompleteJob(ctx context.Context, arg CompleteJobParams) (int64, error)
+	CountActiveAllocations(ctx context.Context) (int64, error)
 	CountAssets(ctx context.Context) (int64, error)
+	CountAssetsFiltered(ctx context.Context, arg CountAssetsFilteredParams) (int64, error)
+	CountPayments(ctx context.Context, userID *int64) (int64, error)
+	CountUsers(ctx context.Context, query *string) (int64, error)
 	CreateAllocation(ctx context.Context, arg CreateAllocationParams) (Allocation, error)
 	CreateAsset(ctx context.Context, arg CreateAssetParams) (Asset, error)
 	CreatePayment(ctx context.Context, arg CreatePaymentParams) (Payment, error)
@@ -49,21 +55,40 @@ type Querier interface {
 	GetPaymentForUpdate(ctx context.Context, id int64) (Payment, error)
 	GetUser(ctx context.Context, id int64) (User, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
+	JobStatusCounts(ctx context.Context) ([]JobStatusCountsRow, error)
 	ListAllocationsByAsset(ctx context.Context, assetID int64) ([]Allocation, error)
 	// ListAllocationsByAssetIDs loads allocations for a whole page of assets in
 	// one round trip. The IDs travel as a single array parameter, so the SQL text
 	// (and its prepared statement) is the same for any number of IDs.
 	ListAllocationsByAssetIDs(ctx context.Context, assetIds []int64) ([]Allocation, error)
 	ListAssets(ctx context.Context, arg ListAssetsParams) ([]Asset, error)
+	// The *Filtered queries serve searches. They are separate statements on
+	// purpose: a catch-all "($1 IS NULL OR col = $1)" predicate is evaluated on
+	// every row in a generic plan, which made the unfiltered list (the hot path
+	// measured in docs/perf.md) measurably slower. NULL means "no filter";
+	// query is an ILIKE pattern built and escaped by the service.
+	ListAssetsFiltered(ctx context.Context, arg ListAssetsFilteredParams) ([]Asset, error)
 	// ListAssetsWithAllocations is the JOIN alternative to the batched query.
 	// The page is cut in a subquery *before* the join: putting LIMIT on the
 	// joined rows would count allocations, not assets, and split an asset's
 	// allocations across pages. Asset columns repeat once per allocation row.
 	ListAssetsWithAllocations(ctx context.Context, arg ListAssetsWithAllocationsParams) ([]ListAssetsWithAllocationsRow, error)
+	ListAssetsWithAllocationsFiltered(ctx context.Context, arg ListAssetsWithAllocationsFilteredParams) ([]ListAssetsWithAllocationsFilteredRow, error)
+	// ListNotifications is the notification feed: one user's jobs, or all of them
+	// when user_id is NULL (admins). Newest first.
+	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]ListNotificationsRow, error)
+	ListPayments(ctx context.Context, arg ListPaymentsParams) ([]Payment, error)
 	ListPaymentsSince(ctx context.Context, createdAt time.Time) ([]Payment, error)
+	// ListUsers is the people directory; query is an escaped ILIKE pattern or NULL.
+	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
+	// ListUsersByIDs resolves the people on a page of assets in one query
+	// (the same batching idea as ListAllocationsByAssetIDs).
+	ListUsersByIDs(ctx context.Context, ids []int64) ([]User, error)
+	PaymentStatusTotals(ctx context.Context) ([]PaymentStatusTotalsRow, error)
 	// PaymentSucceededJobCounts returns, per payment, how many
 	// payment_succeeded notification jobs exist (0 for none).
 	PaymentSucceededJobCounts(ctx context.Context, createdAt time.Time) ([]PaymentSucceededJobCountsRow, error)
+	RecentAllocations(ctx context.Context, lim int32) ([]RecentAllocationsRow, error)
 	// Dedupe: the primary key on id makes a second insert of the same event a
 	// no-op. Zero affected rows means "already processed".
 	RecordStripeEvent(ctx context.Context, arg RecordStripeEventParams) (int64, error)

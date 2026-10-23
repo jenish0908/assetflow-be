@@ -13,10 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stripe/stripe-go/v81/webhook"
 
-	"github.com/jenish0908/assetflow/internal/auth"
-	"github.com/jenish0908/assetflow/internal/billing"
-	"github.com/jenish0908/assetflow/internal/service"
-	"github.com/jenish0908/assetflow/internal/store"
+	"github.com/jenish0908/assetflow-be/internal/auth"
+	"github.com/jenish0908/assetflow-be/internal/billing"
+	"github.com/jenish0908/assetflow-be/internal/service"
+	"github.com/jenish0908/assetflow-be/internal/store"
 )
 
 // Integration tests: need TEST_DATABASE_URL pointing at a migrated database.

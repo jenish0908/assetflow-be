@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/jenish0908/assetflow/internal/service"
+	"github.com/jenish0908/assetflow-be/internal/service"
 )
 
 // fakeAssets is an in-memory AssetService that logs every call, with hooks

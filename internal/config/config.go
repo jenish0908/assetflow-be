@@ -23,6 +23,9 @@ type Config struct {
 	// ListStrategy picks how GET /assets loads allocations: batched (default),
 	// join or nplus1. Kept configurable so the perf script can compare them.
 	ListStrategy string
+	// BillingMode is "stripe" (needs STRIPE_* keys), "fake" (simulated card
+	// processor for local demos) or "" (auto: stripe if a key is set, else off).
+	BillingMode string
 	// Stripe is optional: with no secret key, billing routes are disabled.
 	StripeSecretKey     string
 	StripeWebhookSecret string
@@ -47,6 +50,7 @@ func Load(getenv func(string) string) (Config, error) {
 		RateLimitBurst:  20,
 		ListStrategy:    valueOr(getenv("LIST_STRATEGY"), "batched"),
 
+		BillingMode:         getenv("BILLING_MODE"),
 		StripeSecretKey:     getenv("STRIPE_SECRET_KEY"),
 		StripeWebhookSecret: getenv("STRIPE_WEBHOOK_SECRET"),
 		StripePaymentMethod: valueOr(getenv("STRIPE_PAYMENT_METHOD"), "pm_card_visa"),
@@ -54,6 +58,15 @@ func Load(getenv func(string) string) (Config, error) {
 		OpenAIAPIKey:     getenv("OPENAI_API_KEY"),
 		OpenAIModel:      valueOr(getenv("OPENAI_MODEL"), "gpt-4o-mini"),
 		AgentToolTimeout: 5 * time.Second,
+	}
+	switch cfg.BillingMode {
+	case "", "fake":
+	case "stripe":
+		if cfg.StripeSecretKey == "" {
+			return Config{}, errors.New("config: BILLING_MODE=stripe needs STRIPE_SECRET_KEY")
+		}
+	default:
+		return Config{}, fmt.Errorf("config: BILLING_MODE must be stripe or fake, got %q", cfg.BillingMode)
 	}
 	if cfg.StripeSecretKey != "" && cfg.StripeWebhookSecret == "" {
 		return Config{}, errors.New("config: STRIPE_WEBHOOK_SECRET is required when STRIPE_SECRET_KEY is set")

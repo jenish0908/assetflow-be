@@ -12,7 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/jenish0908/assetflow/internal/auth"
+	"github.com/jenish0908/assetflow-be/internal/auth"
 )
 
 const (

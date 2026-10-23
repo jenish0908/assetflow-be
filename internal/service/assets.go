@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/jenish0908/assetflow/internal/notify"
+	"github.com/jenish0908/assetflow-be/internal/notify"
 )
 
 const (
@@ -107,34 +107,67 @@ func (s *AssetService) GetByTag(ctx context.Context, tag string) (AssetWithAlloc
 	return s.Get(ctx, a.ID)
 }
 
-// List returns a page of assets, each with its allocation history, plus the
-// total asset count. See ListStrategy for how allocations are loaded.
-func (s *AssetService) List(ctx context.Context, limit, offset int) (AssetPage, error) {
+// Paginate applies the default page size and validates limit and offset.
+func Paginate(limit, offset int) (int, int, error) {
 	if limit == 0 {
 		limit = defaultPageSize
 	}
 	if limit < 1 || limit > maxPageSize {
-		return AssetPage{}, NewError(ErrInvalid, "limit must be between 1 and %d", maxPageSize)
+		return 0, 0, NewError(ErrInvalid, "limit must be between 1 and %d", maxPageSize)
 	}
 	if offset < 0 || offset > math.MaxInt32 {
-		return AssetPage{}, NewError(ErrInvalid, "offset must be between 0 and %d", math.MaxInt32)
+		return 0, 0, NewError(ErrInvalid, "offset must be between 0 and %d", math.MaxInt32)
+	}
+	return limit, offset, nil
+}
+
+// likePattern turns user search text into an ILIKE "contains" pattern,
+// escaping the wildcard characters % and _ (and the escape character), so
+// searching for "50%" finds "50%" rather than everything starting with 50.
+// Empty text means no filter.
+func likePattern(text string) (string, error) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return "", nil
+	}
+	if utf8.RuneCountInString(text) > 100 {
+		return "", NewError(ErrInvalid, "search text must be at most 100 characters")
+	}
+	escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(text)
+	return "%" + escaped + "%", nil
+}
+
+// List returns a page of assets matching f, each with its allocation history,
+// plus the total number of matches. See ListStrategy for how allocations are
+// loaded.
+func (s *AssetService) List(ctx context.Context, f AssetFilter, limit, offset int) (AssetPage, error) {
+	limit, offset, err := Paginate(limit, offset)
+	if err != nil {
+		return AssetPage{}, err
+	}
+	switch f.Status {
+	case "", StatusAvailable, StatusAllocated, StatusMaintenance, StatusRetired:
+	default:
+		return AssetPage{}, NewError(ErrInvalid, "status must be one of available, allocated, maintenance, retired")
+	}
+	if f.Query, err = likePattern(f.Query); err != nil {
+		return AssetPage{}, err
 	}
 
 	var items []AssetWithAllocations
-	var err error
 	switch s.listStrategy {
 	case ListJoin:
-		items, err = s.store.ListAssetsWithAllocations(ctx, limit, offset)
+		items, err = s.store.ListAssetsWithAllocations(ctx, f, limit, offset)
 	case ListNPlusOne:
-		items, err = s.listNPlusOne(ctx, limit, offset)
+		items, err = s.listNPlusOne(ctx, f, limit, offset)
 	default:
-		items, err = s.listBatched(ctx, limit, offset)
+		items, err = s.listBatched(ctx, f, limit, offset)
 	}
 	if err != nil {
 		return AssetPage{}, fmt.Errorf("list assets: %w", err)
 	}
 
-	total, err := s.store.CountAssets(ctx)
+	total, err := s.store.CountAssets(ctx, f)
 	if err != nil {
 		return AssetPage{}, fmt.Errorf("count assets: %w", err)
 	}
@@ -143,8 +176,8 @@ func (s *AssetService) List(ctx context.Context, limit, offset int) (AssetPage, 
 
 // listNPlusOne is the naive version kept for measurement: 1 query for the
 // page, then 1 query per asset. With a page of 50 that is 51 round trips.
-func (s *AssetService) listNPlusOne(ctx context.Context, limit, offset int) ([]AssetWithAllocations, error) {
-	assets, err := s.store.ListAssets(ctx, limit, offset)
+func (s *AssetService) listNPlusOne(ctx context.Context, f AssetFilter, limit, offset int) ([]AssetWithAllocations, error) {
+	assets, err := s.store.ListAssets(ctx, f, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -161,8 +194,8 @@ func (s *AssetService) listNPlusOne(ctx context.Context, limit, offset int) ([]A
 
 // listBatched fetches the page, then all of its allocations in one query,
 // and groups them by asset ID in a map: 2 round trips for any page size.
-func (s *AssetService) listBatched(ctx context.Context, limit, offset int) ([]AssetWithAllocations, error) {
-	assets, err := s.store.ListAssets(ctx, limit, offset)
+func (s *AssetService) listBatched(ctx context.Context, f AssetFilter, limit, offset int) ([]AssetWithAllocations, error) {
+	assets, err := s.store.ListAssets(ctx, f, limit, offset)
 	if err != nil {
 		return nil, err
 	}

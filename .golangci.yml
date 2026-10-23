@@ -16,7 +16,7 @@ linters:
 
 linters-settings:
   goimports:
-    local-prefixes: github.com/jenish0908/assetflow
+    local-prefixes: github.com/jenish0908/assetflow-be
   nolintlint:
     require-explanation: true
     require-specific: true

@@ -168,15 +168,15 @@ func TestAssetListPagination(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			store := &mockStore{
-				listAssets: func(_ context.Context, limit, offset int) ([]Asset, error) {
+				listAssets: func(_ context.Context, _ AssetFilter, limit, offset int) ([]Asset, error) {
 					assert.Equal(t, tt.wantLimit, limit)
 					assert.Equal(t, tt.offset, offset)
 					return nil, nil
 				},
-				countAssets: func(context.Context) (int64, error) { return 0, nil },
+				countAssets: func(context.Context, AssetFilter) (int64, error) { return 0, nil },
 			}
 
-			page, err := NewAssetService(store, ListBatched).List(context.Background(), tt.limit, tt.offset)
+			page, err := NewAssetService(store, ListBatched).List(context.Background(), AssetFilter{}, tt.limit, tt.offset)
 			if tt.wantKind != nil {
 				require.ErrorIs(t, err, tt.wantKind)
 				return
@@ -216,8 +216,8 @@ func TestAssetListStrategies(t *testing.T) {
 		t.Run(string(tt.strategy), func(t *testing.T) {
 			calls := 0
 			store := &mockStore{
-				listAssets:  func(context.Context, int, int) ([]Asset, error) { return assets, nil },
-				countAssets: func(context.Context) (int64, error) { return 3, nil },
+				listAssets:  func(context.Context, AssetFilter, int, int) ([]Asset, error) { return assets, nil },
+				countAssets: func(context.Context, AssetFilter) (int64, error) { return 3, nil },
 				listAllocationsByAsset: func(_ context.Context, id int64) ([]Allocation, error) {
 					calls++
 					if a := allocs[id]; a != nil {
@@ -231,13 +231,13 @@ func TestAssetListStrategies(t *testing.T) {
 					// Flat, newest-first across assets, as the SQL returns it.
 					return []Allocation{allocs[3][0], allocs[1][0], allocs[1][1]}, nil
 				},
-				listAssetsWithAllocations: func(context.Context, int, int) ([]AssetWithAllocations, error) {
+				listAssetsWithAllocations: func(context.Context, AssetFilter, int, int) ([]AssetWithAllocations, error) {
 					calls++
 					return want, nil
 				},
 			}
 
-			page, err := NewAssetService(store, tt.strategy).List(context.Background(), 0, 0)
+			page, err := NewAssetService(store, tt.strategy).List(context.Background(), AssetFilter{}, 0, 0)
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.wantAllocCall, calls)

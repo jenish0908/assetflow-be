@@ -39,6 +39,18 @@ func (q *Queries) ApplyPaymentStatus(ctx context.Context, arg ApplyPaymentStatus
 	return err
 }
 
+const countPayments = `-- name: CountPayments :one
+SELECT count(*) FROM payments
+WHERE $1::bigint IS NULL OR user_id = $1
+`
+
+func (q *Queries) CountPayments(ctx context.Context, userID *int64) (int64, error) {
+	row := q.db.QueryRow(ctx, countPayments, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createPayment = `-- name: CreatePayment :one
 INSERT INTO payments (user_id, idempotency_key, amount_cents, currency)
 VALUES ($1, $2, $3, $4)
@@ -182,6 +194,50 @@ func (q *Queries) GetPaymentForUpdate(ctx context.Context, id int64) (Payment, e
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const listPayments = `-- name: ListPayments :many
+SELECT id, user_id, idempotency_key, payment_intent_id, amount_cents, currency, status, last_event_at, created_at, updated_at FROM payments
+WHERE $1::bigint IS NULL OR user_id = $1
+ORDER BY id DESC
+LIMIT $3 OFFSET $2
+`
+
+type ListPaymentsParams struct {
+	UserID *int64 `json:"user_id"`
+	Off    int32  `json:"off"`
+	Lim    int32  `json:"lim"`
+}
+
+func (q *Queries) ListPayments(ctx context.Context, arg ListPaymentsParams) ([]Payment, error) {
+	rows, err := q.db.Query(ctx, listPayments, arg.UserID, arg.Off, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Payment
+	for rows.Next() {
+		var i Payment
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.IdempotencyKey,
+			&i.PaymentIntentID,
+			&i.AmountCents,
+			&i.Currency,
+			&i.Status,
+			&i.LastEventAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listPaymentsSince = `-- name: ListPaymentsSince :many

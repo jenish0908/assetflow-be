@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jenish0908/assetflow/internal/auth"
+	"github.com/jenish0908/assetflow-be/internal/auth"
 )
 
 type fakeTokenParser map[string]auth.Claims

@@ -14,9 +14,9 @@ import (
 	"github.com/stripe/stripe-go/v81"
 	"github.com/stripe/stripe-go/v81/webhook"
 
-	"github.com/jenish0908/assetflow/internal/auth"
-	"github.com/jenish0908/assetflow/internal/notify"
-	"github.com/jenish0908/assetflow/internal/service"
+	"github.com/jenish0908/assetflow-be/internal/auth"
+	"github.com/jenish0908/assetflow-be/internal/notify"
+	"github.com/jenish0908/assetflow-be/internal/service"
 )
 
 // Options controls retries and the two safeguards. Production uses
@@ -343,4 +343,25 @@ func newKey() string {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// ListPayments returns the caller's payments, newest first; admins see all.
+func (s *Service) ListPayments(ctx context.Context, actor auth.Claims, limit, offset int) (PaymentPage, error) {
+	limit, offset, err := service.Paginate(limit, offset)
+	if err != nil {
+		return PaymentPage{}, err
+	}
+	var userID *int64
+	if actor.Role != auth.RoleAdmin {
+		userID = &actor.UserID
+	}
+	items, err := s.store.ListPayments(ctx, userID, limit, offset)
+	if err != nil {
+		return PaymentPage{}, fmt.Errorf("list payments: %w", err)
+	}
+	total, err := s.store.CountPayments(ctx, userID)
+	if err != nil {
+		return PaymentPage{}, fmt.Errorf("count payments: %w", err)
+	}
+	return PaymentPage{Items: items, Limit: limit, Offset: offset, Total: total}, nil
 }

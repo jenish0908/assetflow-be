@@ -9,7 +9,7 @@ import (
 	"net/mail"
 	"strings"
 
-	"github.com/jenish0908/assetflow/internal/auth"
+	"github.com/jenish0908/assetflow-be/internal/auth"
 )
 
 // TokenIssuer creates access tokens. *auth.TokenManager satisfies it.
@@ -121,4 +121,48 @@ func (s *UserService) Find(ctx context.Context, query string) ([]User, error) {
 
 func normalizeEmail(s string) string {
 	return strings.ToLower(strings.TrimSpace(s))
+}
+
+// Get returns one user.
+func (s *UserService) Get(ctx context.Context, id int64) (User, error) {
+	u, err := s.store.GetUser(ctx, id)
+	if err != nil {
+		return User{}, fmt.Errorf("get user: %w", notFound(err, "user", id))
+	}
+	return u, nil
+}
+
+// List returns a page of the people directory, optionally filtered by a
+// case-insensitive search on name and email.
+func (s *UserService) List(ctx context.Context, query string, limit, offset int) (UserPage, error) {
+	limit, offset, err := Paginate(limit, offset)
+	if err != nil {
+		return UserPage{}, err
+	}
+	pattern, err := likePattern(query)
+	if err != nil {
+		return UserPage{}, err
+	}
+	users, err := s.store.ListUsers(ctx, pattern, limit, offset)
+	if err != nil {
+		return UserPage{}, fmt.Errorf("list users: %w", err)
+	}
+	total, err := s.store.CountUsers(ctx, pattern)
+	if err != nil {
+		return UserPage{}, fmt.Errorf("count users: %w", err)
+	}
+	return UserPage{Items: users, Limit: limit, Offset: offset, Total: total}, nil
+}
+
+// GetMany returns the users with the given IDs (unknown IDs are skipped),
+// so a page that mentions several people needs one request, not one each.
+func (s *UserService) GetMany(ctx context.Context, ids []int64) ([]User, error) {
+	if len(ids) == 0 || len(ids) > maxPageSize {
+		return nil, NewError(ErrInvalid, "ids must list 1 to %d user IDs", maxPageSize)
+	}
+	users, err := s.store.ListUsersByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("get users: %w", err)
+	}
+	return users, nil
 }

@@ -1,4 +1,4 @@
-module github.com/jenish0908/assetflow
+module github.com/jenish0908/assetflow-be
 
 go 1.22
 

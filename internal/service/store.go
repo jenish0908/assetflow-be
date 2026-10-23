@@ -6,19 +6,25 @@ import "context"
 // by the consumer, and implemented by internal/store. Implementations return
 // ErrNotFound for missing rows and ErrConflict for unique/foreign-key
 // violations (wrapped, so errors.Is works).
+//
+// Text filters (AssetFilter.Query, ListUsers' pattern) arrive as ready-made
+// ILIKE patterns; an empty string means "no filter".
 type Store interface {
 	CreateUser(ctx context.Context, u NewUser) (User, error)
 	GetUser(ctx context.Context, id int64) (User, error)
 	GetUserCredentials(ctx context.Context, email string) (UserCredentials, error)
 	FindUsers(ctx context.Context, query string) ([]User, error)
+	ListUsers(ctx context.Context, pattern string, limit, offset int) ([]User, error)
+	CountUsers(ctx context.Context, pattern string) (int64, error)
+	ListUsersByIDs(ctx context.Context, ids []int64) ([]User, error)
 
 	CreateAsset(ctx context.Context, a NewAsset) (Asset, error)
 	GetAsset(ctx context.Context, id int64) (Asset, error)
 	GetAssetByTag(ctx context.Context, tag string) (Asset, error)
 	GetAssetForUpdate(ctx context.Context, id int64) (Asset, error)
-	ListAssets(ctx context.Context, limit, offset int) ([]Asset, error)
-	ListAssetsWithAllocations(ctx context.Context, limit, offset int) ([]AssetWithAllocations, error)
-	CountAssets(ctx context.Context) (int64, error)
+	ListAssets(ctx context.Context, f AssetFilter, limit, offset int) ([]Asset, error)
+	ListAssetsWithAllocations(ctx context.Context, f AssetFilter, limit, offset int) ([]AssetWithAllocations, error)
+	CountAssets(ctx context.Context, f AssetFilter) (int64, error)
 	UpdateAsset(ctx context.Context, id int64, p AssetPatch) (Asset, error)
 	SetAssetStatus(ctx context.Context, id int64, status AssetStatus) (Asset, error)
 	DeleteAsset(ctx context.Context, id int64) error
@@ -31,6 +37,12 @@ type Store interface {
 	// EnqueueNotification adds a notification job. Called inside InTx, the
 	// job commits or rolls back together with the change it announces.
 	EnqueueNotification(ctx context.Context, kind string, payload []byte) error
+
+	Stats(ctx context.Context) (Stats, error)
+	RecentAllocations(ctx context.Context, limit int) ([]AllocationEvent, error)
+	// ListNotifications returns one user's notification jobs, or everyone's
+	// when userID is nil, newest first.
+	ListNotifications(ctx context.Context, userID *int64, limit int) ([]Notification, error)
 
 	// InTx runs fn inside a database transaction. fn receives a Store bound to
 	// that transaction; returning an error rolls it back.

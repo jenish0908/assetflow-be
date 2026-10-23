@@ -10,7 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/jenish0908/assetflow/internal/auth"
+	"github.com/jenish0908/assetflow-be/internal/auth"
 )
 
 // Pinger reports whether a dependency is reachable. *pgxpool.Pool satisfies it.
@@ -34,7 +34,10 @@ type Deps struct {
 	// Billing is optional; nil disables the payment and webhook routes.
 	Billing BillingService
 	// Agent is optional; nil disables POST /agent/chat.
-	Agent     AgentService
+	Agent AgentService
+	// Dashboard is optional; nil disables GET /stats and GET /notifications.
+	Dashboard DashboardService
+	Features  Features
 	RateLimit RateLimit
 }
 
@@ -55,7 +58,7 @@ func NewRouter(d Deps) *gin.Engine {
 	r.GET("/healthz", healthz)
 	r.GET("/readyz", readyz(d.Logger, d.DB))
 
-	h := &handlers{users: d.Users, assets: d.Assets}
+	h := &handlers{users: d.Users, assets: d.Assets, features: d.Features}
 	limiter := newRateLimiter(d.RateLimit.RPS, d.RateLimit.Burst, time.Now)
 
 	api := r.Group("", rateLimit(limiter))
@@ -66,6 +69,8 @@ func NewRouter(d Deps) *gin.Engine {
 	manager := requireRole(auth.RoleManager)
 	admin := requireRole(auth.RoleAdmin)
 
+	authed.GET("/me", viewer, h.me)
+	authed.GET("/users", viewer, h.listUsers)
 	authed.POST("/users", admin, h.createUser)
 
 	authed.GET("/assets", viewer, h.listAssets)
@@ -83,7 +88,14 @@ func NewRouter(d Deps) *gin.Engine {
 		// rate limited by IP.
 		r.POST("/webhooks/stripe", bh.stripeWebhook)
 		authed.POST("/payments", viewer, bh.createPayment)
+		authed.GET("/payments", viewer, bh.listPayments)
 		authed.GET("/payments/:id", viewer, bh.getPayment)
+	}
+
+	if d.Dashboard != nil {
+		dh := &dashboardHandlers{dashboard: d.Dashboard}
+		authed.GET("/stats", viewer, dh.overview)
+		authed.GET("/notifications", viewer, dh.notifications)
 	}
 
 	if d.Agent != nil {

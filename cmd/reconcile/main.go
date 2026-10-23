@@ -13,8 +13,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/jenish0908/assetflow/internal/billing"
-	"github.com/jenish0908/assetflow/internal/store"
+	"github.com/jenish0908/assetflow-be/internal/billing"
+	"github.com/jenish0908/assetflow-be/internal/store"
 )
 
 func main() {

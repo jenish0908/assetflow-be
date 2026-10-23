@@ -55,6 +55,32 @@ through a real Postgres with all three strategies and requires identical
 results at every offset, including assets with no allocations and pages that
 cut across allocation histories.
 
+### Later re-runs and run-to-run variance
+
+When the UI work added search and status filters to `GET /assets`, the list
+was re-measured to check for regressions:
+
+| run | what changed | nplus1 req/s | batched req/s | batched p95 | queries/req (n+1 / batched) |
+|---|---|---:|---:|---:|---:|
+| [`…104646Z`](perf-results/20261023T104646Z-list-assets.md) | catch-all filter SQL; **`npm install` running at the same time** (invalid) | 139 | 514 | 103.1 ms | 52 / 3 |
+| [`…105352Z`](perf-results/20261023T105352Z-list-assets.md) (no other work of mine running) | catch-all filter SQL | 193 | 876 | 50.5 ms | 52 / 3 |
+| [`…110141Z`](perf-results/20261023T110141Z-list-assets.md) (no other work of mine running) | filters moved to separate `*Filtered` queries; hot path is the SQL measured above | 169 | 699 | 69.5 ms | 52 / 3 |
+
+Findings:
+- `EXPLAIN ANALYZE` showed a real but small cost of the catch-all
+  `($1 IS NULL OR status = $1)` style: in a generic plan the condition is
+  evaluated on every row, so the per-request `count(*)` went from 1.2 ms to
+  2.55 ms. The unfiltered list now uses its own statements again (see
+  `db/queries/assets.sql`), and searches use the `*Filtered` ones.
+- The absolute numbers in these re-runs are lower for **every** strategy,
+  including the last run, whose hot-path SQL is identical to the headline
+  run. Host CPU was at about 68% before any test started (other Windows
+  processes and another local service), so these runs are not comparable in
+  absolute terms with the headline table. The relationships held in every
+  run: 52 vs 3 queries per request, and batched at 3.7–4.5× the N+1 throughput (4.9× in the headline run).
+- Lesson: on a shared laptop, compare strategies within one run, record the
+  host load, and repeat before trusting an absolute number.
+
 ### Re-run
 
 ```bash

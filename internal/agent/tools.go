@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jenish0908/assetflow/internal/auth"
-	"github.com/jenish0908/assetflow/internal/service"
+	"github.com/jenish0908/assetflow-be/internal/auth"
+	"github.com/jenish0908/assetflow-be/internal/service"
 )
 
 // AssetService is what the tools need from the asset service.

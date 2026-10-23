@@ -1,0 +1,45 @@
+
+Summary:
+  Total:	30.0331 secs
+  Slowest:	0.4752 secs
+  Fastest:	0.0033 secs
+  Average:	0.0216 secs
+  Requests/sec:	924.9447
+  
+
+Response time histogram:
+  0.003 [1]	|
+  0.050 [26589]	|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+  0.098 [1072]	|■■
+  0.145 [87]	|
+  0.192 [20]	|
+  0.239 [3]	|
+  0.286 [2]	|
+  0.334 [0]	|
+  0.381 [2]	|
+  0.428 [1]	|
+  0.475 [2]	|
+
+
+Latency distribution:
+  10% in 0.0088 secs
+  25% in 0.0123 secs
+  50% in 0.0179 secs
+  75% in 0.0260 secs
+  90% in 0.0377 secs
+  95% in 0.0480 secs
+  99% in 0.0791 secs
+
+Details (average, fastest, slowest):
+  DNS+dialup:	0.0000 secs, 0.0033 secs, 0.4752 secs
+  DNS-lookup:	0.0000 secs, 0.0000 secs, 0.0049 secs
+  req write:	0.0000 secs, 0.0000 secs, 0.0161 secs
+  resp wait:	0.0209 secs, 0.0029 secs, 0.4665 secs
+  resp read:	0.0006 secs, 0.0000 secs, 0.0407 secs
+
+Status code distribution:
+  [200]	27779 responses
+
+
+
+pg_stat_statements calls during run: 55558

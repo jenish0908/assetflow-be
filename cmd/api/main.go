@@ -14,13 +14,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/jenish0908/assetflow/internal/agent"
-	"github.com/jenish0908/assetflow/internal/auth"
-	"github.com/jenish0908/assetflow/internal/billing"
-	"github.com/jenish0908/assetflow/internal/config"
-	"github.com/jenish0908/assetflow/internal/httpapi"
-	"github.com/jenish0908/assetflow/internal/service"
-	"github.com/jenish0908/assetflow/internal/store"
+	"github.com/jenish0908/assetflow-be/internal/agent"
+	"github.com/jenish0908/assetflow-be/internal/auth"
+	"github.com/jenish0908/assetflow-be/internal/billing"
+	"github.com/jenish0908/assetflow-be/internal/config"
+	"github.com/jenish0908/assetflow-be/internal/httpapi"
+	"github.com/jenish0908/assetflow-be/internal/service"
+	"github.com/jenish0908/assetflow-be/internal/store"
 )
 
 func main() {
@@ -61,9 +61,12 @@ func run() error {
 	users := service.NewUserService(st, tokens)
 	assets := service.NewAssetService(st, listStrategy)
 
+	features := httpapi.Features{Billing: "disabled", Agent: "fake"}
+
 	var llm agent.LLM = agent.Fake{}
 	if cfg.OpenAIAPIKey != "" {
 		llm = agent.NewOpenAI(cfg.OpenAIAPIKey, cfg.OpenAIModel)
+		features.Agent = "openai"
 		logger.Info("agent using OpenAI", "model", cfg.OpenAIModel)
 	} else {
 		logger.Warn("OPENAI_API_KEY not set; agent uses the built-in fake model")
@@ -78,16 +81,27 @@ func run() error {
 		Users:     users,
 		Assets:    assets,
 		Agent:     agent.New(llm, assets, users, agentOpts, logger),
+		Dashboard: service.NewDashboardService(st),
 		RateLimit: httpapi.RateLimit{RPS: cfg.RateLimitRPS, Burst: cfg.RateLimitBurst},
 	}
 	// Only assign Billing when configured: a nil *billing.Service stored in
 	// the interface field would make d.Billing != nil true.
-	if cfg.StripeSecretKey != "" {
+	switch {
+	case cfg.BillingMode == "fake":
+		// In-memory card processor: every charge succeeds, nothing leaves the
+		// machine. For local demos only; its event log grows in memory.
+		gateway := billing.NewFakeStripe(time.Now().UnixNano(), 0)
+		deps.Billing = billing.NewService(store.NewBilling(pool), gateway, "whsec_fake_mode", billing.DefaultOptions())
+		features.Billing = "fake"
+		logger.Warn("BILLING_MODE=fake: payments use a simulated card processor")
+	case cfg.StripeSecretKey != "":
 		gateway := billing.NewStripeGateway(cfg.StripeSecretKey, cfg.StripePaymentMethod)
 		deps.Billing = billing.NewService(store.NewBilling(pool), gateway, cfg.StripeWebhookSecret, billing.DefaultOptions())
-	} else {
-		logger.Warn("STRIPE_SECRET_KEY not set; payment routes disabled")
+		features.Billing = "stripe"
+	default:
+		logger.Warn("billing disabled: set STRIPE_SECRET_KEY, or BILLING_MODE=fake for a local demo")
 	}
+	deps.Features = features
 
 	gin.SetMode(gin.ReleaseMode)
 	srv := &http.Server{

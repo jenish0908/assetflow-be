@@ -21,6 +21,24 @@ func (q *Queries) CountAssets(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const countAssetsFiltered = `-- name: CountAssetsFiltered :one
+SELECT count(*) FROM assets
+WHERE ($1::text IS NULL OR status = $1)
+  AND ($2::text IS NULL OR tag ILIKE $2 OR name ILIKE $2)
+`
+
+type CountAssetsFilteredParams struct {
+	Status *string `json:"status"`
+	Query  *string `json:"query"`
+}
+
+func (q *Queries) CountAssetsFiltered(ctx context.Context, arg CountAssetsFilteredParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countAssetsFiltered, arg.Status, arg.Query)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAsset = `-- name: CreateAsset :one
 INSERT INTO assets (tag, name, category)
 VALUES ($1, $2, $3)
@@ -163,6 +181,59 @@ func (q *Queries) ListAssets(ctx context.Context, arg ListAssetsParams) ([]Asset
 	return items, nil
 }
 
+const listAssetsFiltered = `-- name: ListAssetsFiltered :many
+SELECT id, tag, name, category, status, created_at, updated_at FROM assets
+WHERE ($1::text IS NULL OR status = $1)
+  AND ($2::text IS NULL OR tag ILIKE $2 OR name ILIKE $2)
+ORDER BY id
+LIMIT $4 OFFSET $3
+`
+
+type ListAssetsFilteredParams struct {
+	Status *string `json:"status"`
+	Query  *string `json:"query"`
+	Off    int32   `json:"off"`
+	Lim    int32   `json:"lim"`
+}
+
+// The *Filtered queries serve searches. They are separate statements on
+// purpose: a catch-all "($1 IS NULL OR col = $1)" predicate is evaluated on
+// every row in a generic plan, which made the unfiltered list (the hot path
+// measured in docs/perf.md) measurably slower. NULL means "no filter";
+// query is an ILIKE pattern built and escaped by the service.
+func (q *Queries) ListAssetsFiltered(ctx context.Context, arg ListAssetsFilteredParams) ([]Asset, error) {
+	rows, err := q.db.Query(ctx, listAssetsFiltered,
+		arg.Status,
+		arg.Query,
+		arg.Off,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Asset
+	for rows.Next() {
+		var i Asset
+		if err := rows.Scan(
+			&i.ID,
+			&i.Tag,
+			&i.Name,
+			&i.Category,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAssetsWithAllocations = `-- name: ListAssetsWithAllocations :many
 SELECT
   a.id, a.tag, a.name, a.category, a.status, a.created_at, a.updated_at,
@@ -211,6 +282,82 @@ func (q *Queries) ListAssetsWithAllocations(ctx context.Context, arg ListAssetsW
 	var items []ListAssetsWithAllocationsRow
 	for rows.Next() {
 		var i ListAssetsWithAllocationsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Tag,
+			&i.Name,
+			&i.Category,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.AllocationID,
+			&i.AllocationUserID,
+			&i.AllocationAllocatedAt,
+			&i.AllocationReturnedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAssetsWithAllocationsFiltered = `-- name: ListAssetsWithAllocationsFiltered :many
+SELECT
+  a.id, a.tag, a.name, a.category, a.status, a.created_at, a.updated_at,
+  al.id           AS allocation_id,
+  al.user_id      AS allocation_user_id,
+  al.allocated_at AS allocation_allocated_at,
+  al.returned_at  AS allocation_returned_at
+FROM (
+  SELECT id, tag, name, category, status, created_at, updated_at FROM assets
+  WHERE ($1::text IS NULL OR status = $1)
+    AND ($2::text IS NULL OR tag ILIKE $2 OR name ILIKE $2)
+  ORDER BY id
+  LIMIT $4 OFFSET $3
+) AS a
+LEFT JOIN allocations al ON al.asset_id = a.id
+ORDER BY a.id, al.allocated_at DESC, al.id DESC
+`
+
+type ListAssetsWithAllocationsFilteredParams struct {
+	Status *string `json:"status"`
+	Query  *string `json:"query"`
+	Off    int32   `json:"off"`
+	Lim    int32   `json:"lim"`
+}
+
+type ListAssetsWithAllocationsFilteredRow struct {
+	ID                    int64      `json:"id"`
+	Tag                   string     `json:"tag"`
+	Name                  string     `json:"name"`
+	Category              string     `json:"category"`
+	Status                string     `json:"status"`
+	CreatedAt             time.Time  `json:"created_at"`
+	UpdatedAt             time.Time  `json:"updated_at"`
+	AllocationID          *int64     `json:"allocation_id"`
+	AllocationUserID      *int64     `json:"allocation_user_id"`
+	AllocationAllocatedAt *time.Time `json:"allocation_allocated_at"`
+	AllocationReturnedAt  *time.Time `json:"allocation_returned_at"`
+}
+
+func (q *Queries) ListAssetsWithAllocationsFiltered(ctx context.Context, arg ListAssetsWithAllocationsFilteredParams) ([]ListAssetsWithAllocationsFilteredRow, error) {
+	rows, err := q.db.Query(ctx, listAssetsWithAllocationsFiltered,
+		arg.Status,
+		arg.Query,
+		arg.Off,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAssetsWithAllocationsFilteredRow
+	for rows.Next() {
+		var i ListAssetsWithAllocationsFilteredRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Tag,

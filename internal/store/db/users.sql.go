@@ -9,6 +9,18 @@ import (
 	"context"
 )
 
+const countUsers = `-- name: CountUsers :one
+SELECT count(*) FROM users
+WHERE $1::text IS NULL OR email ILIKE $1 OR name ILIKE $1
+`
+
+func (q *Queries) CountUsers(ctx context.Context, query *string) (int64, error) {
+	row := q.db.QueryRow(ctx, countUsers, query)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, name, password_hash, role)
 VALUES ($1, $2, $3, $4)
@@ -112,4 +124,80 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const listUsers = `-- name: ListUsers :many
+SELECT id, email, name, password_hash, role, created_at FROM users
+WHERE $1::text IS NULL OR email ILIKE $1 OR name ILIKE $1
+ORDER BY lower(name), id
+LIMIT $3 OFFSET $2
+`
+
+type ListUsersParams struct {
+	Query *string `json:"query"`
+	Off   int32   `json:"off"`
+	Lim   int32   `json:"lim"`
+}
+
+// ListUsers is the people directory; query is an escaped ILIKE pattern or NULL.
+func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error) {
+	rows, err := q.db.Query(ctx, listUsers, arg.Query, arg.Off, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Name,
+			&i.PasswordHash,
+			&i.Role,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUsersByIDs = `-- name: ListUsersByIDs :many
+SELECT id, email, name, password_hash, role, created_at FROM users
+WHERE id = ANY($1::bigint[])
+ORDER BY id
+`
+
+// ListUsersByIDs resolves the people on a page of assets in one query
+// (the same batching idea as ListAllocationsByAssetIDs).
+func (q *Queries) ListUsersByIDs(ctx context.Context, ids []int64) ([]User, error) {
+	rows, err := q.db.Query(ctx, listUsersByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Name,
+			&i.PasswordHash,
+			&i.Role,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

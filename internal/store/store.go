@@ -12,8 +12,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/jenish0908/assetflow/internal/service"
-	"github.com/jenish0908/assetflow/internal/store/db"
+	"github.com/jenish0908/assetflow-be/internal/service"
+	"github.com/jenish0908/assetflow-be/internal/store/db"
 )
 
 // NewPool opens a pgx connection pool and verifies the database is reachable,
@@ -90,4 +90,12 @@ func translate(err error) error {
 		}
 	}
 	return err
+}
+
+// optional maps "" to SQL NULL, the "no filter" value of optional parameters.
+func optional(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }

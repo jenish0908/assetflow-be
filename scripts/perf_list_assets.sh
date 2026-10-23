@@ -3,7 +3,7 @@
 # Every number in docs/perf.md (M3 section) comes from this script.
 #
 # Usage:  scripts/perf_list_assets.sh [strategy ...]    default: nplus1 batched join
-# Env:    DURATION=30s  CONCURRENCY=20  PAGE_SIZE=50
+# Env:    DURATION=30s  CONCURRENCY=20  PAGE_SIZE=50  API_PORT=8080 (host port)
 # Needs:  docker with compose v2, bash, curl. Uses a separate database
 #         (assetflow_perf), so your dev data is not touched.
 #
@@ -15,6 +15,8 @@ cd "$(dirname "$0")/.."
 export MSYS_NO_PATHCONV=1 # stop Git Bash on Windows rewriting /paths
 
 if [ $# -eq 0 ]; then set -- nplus1 batched join; fi
+API_PORT=${API_PORT:-8080}
+export API_PORT
 DURATION=${DURATION:-30s}
 CONCURRENCY=${CONCURRENCY:-20}
 PAGE_SIZE=${PAGE_SIZE:-50}
@@ -62,11 +64,11 @@ for strategy in "$@"; do
     RATE_LIMIT_RPS=1000000 RATE_LIMIT_BURST=1000000 \
     docker compose --profile app up -d --force-recreate api >/dev/null 2>&1
   for _ in $(seq 1 60); do
-    curl -sf localhost:8080/readyz >/dev/null && break
+    curl -sf "localhost:$API_PORT/readyz" >/dev/null && break
     sleep 1
   done
 
-  if ! login=$(curl -sf -X POST localhost:8080/auth/login \
+  if ! login=$(curl -sf -X POST "localhost:$API_PORT/auth/login" \
     -d '{"email":"perf@assetflow.dev","password":"perf-pass-123"}'); then
     echo "ERROR: login failed; is the api up and the perf user seeded?" >&2
     docker compose --profile app logs --tail 20 api >&2

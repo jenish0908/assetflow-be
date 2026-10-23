@@ -1,6 +1,6 @@
 # AssetFlow
 
-[![ci](https://github.com/jenish0908/assetflow/actions/workflows/ci.yml/badge.svg)](https://github.com/jenish0908/assetflow/actions/workflows/ci.yml)
+[![ci](https://github.com/jenish0908/assetflow-be/actions/workflows/ci.yml/badge.svg)](https://github.com/jenish0908/assetflow-be/actions/workflows/ci.yml)
 
 An asset-management API in Go. Companies track laptops, monitors and phones,
 allocate them to people, take payments through Stripe, notify users from a
@@ -8,6 +8,8 @@ background worker, and drive all of it in plain English through an LLM agent.
 
 Every performance number in this README comes from a script in [`scripts/`](scripts)
 whose raw output is committed in [`docs/perf-results/`](docs/perf-results).
+
+A React frontend for every feature lives in **[assetflow-fe](https://github.com/jenish0908/assetflow-fe)**.
 
 **Stack:** Go 1.22+ · Gin · PostgreSQL 16 · pgx/v5 · sqlc · golang-migrate ·
 stripe-go · OpenAI tool calling · testify · goleak · Docker (distroless) ·
@@ -148,7 +150,8 @@ and run `make run-api` and `make run-worker`.
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
 | `RATE_LIMIT_RPS` / `RATE_LIMIT_BURST` | `10` / `20` | per client IP |
 | `LIST_STRATEGY` | `batched` | `batched`, `join` or `nplus1` (kept as the perf baseline) |
-| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | unset | billing routes are disabled without them |
+| `BILLING_MODE` | unset (compose: `fake`) | `stripe` (needs the keys below) or `fake`: a simulated card processor for local demos |
+| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | unset | real Stripe test mode; billing is off when neither these nor `BILLING_MODE=fake` are set |
 | `OPENAI_API_KEY` / `OPENAI_MODEL` | unset / `gpt-4o-mini` | without a key the agent uses a built-in deterministic model |
 | `WORKER_CONCURRENCY` | `8` | goroutines per worker |
 | `SHUTDOWN_TIMEOUT` | `10s` api, `20s` worker | graceful shutdown deadline |
@@ -162,7 +165,9 @@ All errors share one shape:
 |---|---|---|
 | `POST` | `/auth/login` | public |
 | `POST` | `/users` | admin |
-| `GET` | `/assets?limit=&offset=` · `/assets/:id` | viewer |
+| `GET` | `/me` (current user + enabled features) | viewer |
+| `GET` | `/users?q=&limit=&offset=` · `/users?ids=1,2,3` (batched lookup) | viewer |
+| `GET` | `/assets?status=&q=&limit=&offset=` · `/assets/:id` | viewer |
 | `POST` | `/assets` | manager |
 | `PATCH` | `/assets/:id` · `/assets/:id/status` | manager |
 | `POST` | `/assets/:id/allocate` · `/assets/:id/return` | manager |
@@ -170,6 +175,7 @@ All errors share one shape:
 | `POST` | `/payments` (optional `Idempotency-Key` header) · `GET /payments/:id` | viewer (owner or admin) |
 | `POST` | `/webhooks/stripe` | Stripe signature |
 | `POST` | `/agent/chat` | viewer; each tool checked against the caller's role |
+| `GET` | `/stats` (overview + recent allocations) · `/notifications` (own; admin: all) · `/payments` (own; admin: all) | viewer |
 | `GET` | `/healthz` · `/readyz` | public |
 
 ```bash

@@ -7,8 +7,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/jenish0908/assetflow/internal/billing"
-	"github.com/jenish0908/assetflow/internal/store/db"
+	"github.com/jenish0908/assetflow-be/internal/billing"
+	"github.com/jenish0908/assetflow-be/internal/store/db"
 )
 
 // BillingStore implements billing.Store and, inside a transaction, billing.Tx.
@@ -120,4 +120,21 @@ func toPayment(r db.Payment) billing.Payment {
 		IdempotencyKey:  r.IdempotencyKey,
 		LastEventAt:     r.LastEventAt,
 	}
+}
+
+func (s *BillingStore) ListPayments(ctx context.Context, userID *int64, limit, offset int) ([]billing.Payment, error) {
+	rows, err := s.q.ListPayments(ctx, db.ListPaymentsParams{UserID: userID, Lim: int32(limit), Off: int32(offset)})
+	if err != nil {
+		return nil, translate(err)
+	}
+	out := make([]billing.Payment, len(rows))
+	for i, r := range rows {
+		out[i] = toPayment(r)
+	}
+	return out, nil
+}
+
+func (s *BillingStore) CountPayments(ctx context.Context, userID *int64) (int64, error) {
+	n, err := s.q.CountPayments(ctx, userID)
+	return n, translate(err)
 }

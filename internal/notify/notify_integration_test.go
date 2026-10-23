@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jenish0908/assetflow/internal/notify"
-	"github.com/jenish0908/assetflow/internal/store"
+	"github.com/jenish0908/assetflow-be/internal/notify"
+	"github.com/jenish0908/assetflow-be/internal/store"
 )
 
 // Integration tests: need TEST_DATABASE_URL pointing at a migrated database.
