@@ -1,0 +1,16 @@
+mode=after payments=200 seed=42 lost-rate=0.20 dup-rate=0.30 workers=8
+client retries after 5xx: 2, webhook events: 600, deliveries: 792 (failed after retries: 0)
+stripe intents: 200, db payments: 200, problems: 200
+  orphan intents (0 charged):  0
+  status mismatches:           0
+  amount mismatches:           0
+  missing intents:             0
+  stuck pending:               0
+  notification issues:         200
+      payment=1 intent=pi_fake_dmc17y19vnpl_000001 0 payment_succeeded jobs, want 1
+      payment=2 intent=pi_fake_dmc17y19vnpl_000002 0 payment_succeeded jobs, want 1
+      payment=3 intent=pi_fake_dmc17y19vnpl_000003 0 payment_succeeded jobs, want 1
+      payment=4 intent=pi_fake_dmc17y19vnpl_000004 0 payment_succeeded jobs, want 1
+      payment=5 intent=pi_fake_dmc17y19vnpl_000005 0 payment_succeeded jobs, want 1
+      ... and 195 more
+SUMMARY|after|200|200|0|0|0|0|0|0|200|200

@@ -1,0 +1,6 @@
+DROP TABLE IF EXISTS notification_jobs;
+DROP TABLE IF EXISTS stripe_events;
+DROP TABLE IF EXISTS payments;
+DROP TABLE IF EXISTS allocations;
+DROP TABLE IF EXISTS assets;
+DROP TABLE IF EXISTS users;

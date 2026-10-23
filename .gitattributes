@@ -1,0 +1,3 @@
+# Keep LF everywhere: shell scripts and Go tooling expect it, even on Windows checkouts.
+* text=auto eol=lf
+*.png binary

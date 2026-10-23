@@ -1,0 +1,10 @@
+mode=after payments=200 seed=42 lost-rate=0.20 dup-rate=0.30 workers=8
+client retries after 5xx: 2, webhook events: 600, deliveries: 792 (failed after retries: 0)
+stripe intents: 200, db payments: 200, problems: 0
+  orphan intents (0 charged):  0
+  status mismatches:           0
+  amount mismatches:           0
+  missing intents:             0
+  stuck pending:               0
+  notification issues:         0
+SUMMARY|after|200|200|0|0|0|0|0|0|0|0

@@ -1,0 +1,107 @@
+services:
+  db:
+    image: postgres:16-alpine
+    # pg_stat_statements counts executed statements; the perf script uses it
+    # to measure queries per request.
+    command: ["postgres", "-c", "shared_preload_libraries=pg_stat_statements"]
+    environment:
+      POSTGRES_USER: assetflow
+      POSTGRES_PASSWORD: assetflow
+      POSTGRES_DB: assetflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U assetflow -d assetflow"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  # `docker compose --profile app up -d --build api`
+  api:
+    build: .
+    profiles: ["app"]
+    environment:
+      DATABASE_URL: ${API_DATABASE_URL:-postgres://assetflow:assetflow@db:5432/assetflow?sslmode=disable}
+      JWT_SECRET: ${JWT_SECRET:-dev-only-secret-0123456789abcdef0123}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LIST_STRATEGY: ${LIST_STRATEGY:-batched}
+      RATE_LIMIT_RPS: ${RATE_LIMIT_RPS:-10}
+      RATE_LIMIT_BURST: ${RATE_LIMIT_BURST:-20}
+    ports:
+      - "8080:8080"
+    # Docker sends SIGKILL after the grace period; keep it longer than the
+    # app's own SHUTDOWN_TIMEOUT (10s) so graceful shutdown can finish.
+    stop_grace_period: 15s
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # `docker compose --profile app up -d --build worker` (scale with --scale worker=3)
+  worker:
+    build:
+      context: .
+      args:
+        CMD: worker
+    profiles: ["app"]
+    environment:
+      DATABASE_URL: ${API_DATABASE_URL:-postgres://assetflow:assetflow@db:5432/assetflow?sslmode=disable}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-8}
+      SHUTDOWN_TIMEOUT: 20s
+    stop_grace_period: 30s # > SHUTDOWN_TIMEOUT, or in-flight jobs get SIGKILLed
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Create a user without installing Go:
+  # `docker compose run --rm adduser -email a@b.dev -name Admin -role admin -password 'change-me-please'`
+  adduser:
+    build:
+      context: .
+      args:
+        CMD: adduser
+    profiles: ["tools"]
+    environment:
+      DATABASE_URL: ${API_DATABASE_URL:-postgres://assetflow:assetflow@db:5432/assetflow?sslmode=disable}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Tools run on demand: `docker compose run --rm migrate up`
+  migrate:
+    image: migrate/migrate:v4.17.1
+    profiles: ["tools"]
+    volumes:
+      - ./db/migrations:/migrations
+    entrypoint:
+      - migrate
+      - -path=/migrations
+      - -database=${MIGRATE_DATABASE_URL:-postgres://assetflow:assetflow@db:5432/assetflow?sslmode=disable}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # `docker compose run --rm sqlc generate`
+  sqlc:
+    image: sqlc/sqlc:1.27.0
+    profiles: ["tools"]
+    working_dir: /src
+    volumes:
+      - .:/src
+
+  # HTTP load generator, run inside the compose network so the numbers do
+  # not include Docker Desktop's host port forwarding.
+  hey:
+    image: golang:1.23
+    profiles: ["tools"]
+    entrypoint: ["go", "run", "github.com/rakyll/hey@v0.1.4"]
+    volumes:
+      - gomod:/go/pkg/mod
+      - gobuild:/root/.cache/go-build
+
+volumes:
+  pgdata:
+  gomod:
+  gobuild:

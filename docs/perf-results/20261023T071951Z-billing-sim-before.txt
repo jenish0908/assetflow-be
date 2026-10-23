@@ -1,0 +1,28 @@
+mode=before payments=200 seed=42 lost-rate=0.20 dup-rate=0.30 workers=8
+client retries after 5xx: 2, webhook events: 747, deliveries: 983 (failed after retries: 0)
+stripe intents: 249, db payments: 202, problems: 387
+  orphan intents (47 charged): 47
+      payment=2 intent=pi_fake_dmc1avyb7f6h_000002 status succeeded, 6911 usd
+      payment=4 intent=pi_fake_dmc1avyb7f6h_000005 status succeeded, 4509 usd
+      payment=12 intent=pi_fake_dmc1avyb7f6h_000014 status succeeded, 9541 usd
+      payment=18 intent=pi_fake_dmc1avyb7f6h_000021 status succeeded, 5942 usd
+      payment=22 intent=pi_fake_dmc1avyb7f6h_000026 status succeeded, 3598 usd
+      ... and 42 more
+  status mismatches:           138
+      payment=3 intent=pi_fake_dmc1avyb7f6h_000004 db=requires_confirmation stripe=succeeded
+      payment=4 intent=pi_fake_dmc1avyb7f6h_000006 db=processing stripe=succeeded
+      payment=5 intent=pi_fake_dmc1avyb7f6h_000007 db=processing stripe=succeeded
+      payment=6 intent=pi_fake_dmc1avyb7f6h_000008 db=processing stripe=succeeded
+      payment=7 intent=pi_fake_dmc1avyb7f6h_000009 db=requires_confirmation stripe=succeeded
+      ... and 133 more
+  amount mismatches:           0
+  missing intents:             0
+  stuck pending:               0
+  notification issues:         202
+      payment=1 intent=pi_fake_dmc1avyb7f6h_000001 2 payment_succeeded jobs, want 1
+      payment=2 intent=pi_fake_dmc1avyb7f6h_000003 3 payment_succeeded jobs, want 1
+      payment=3 intent=pi_fake_dmc1avyb7f6h_000004 2 payment_succeeded jobs, want 1
+      payment=4 intent=pi_fake_dmc1avyb7f6h_000006 4 payment_succeeded jobs, want 1
+      payment=5 intent=pi_fake_dmc1avyb7f6h_000007 2 payment_succeeded jobs, want 1
+      ... and 197 more
+SUMMARY|before|249|202|47|47|138|0|0|0|202|387
